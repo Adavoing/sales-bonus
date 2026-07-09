@@ -1,8 +1,21 @@
 /**
- * Функция для расчёта выручки от операции с учётом скидки
- * @param purchase - запись об одном товаре в чеке (из массива items)
- * @param _product - карточка товара из каталога (может не использоваться напрямую, но передаётся для контекста)
- * @returns {number} выручка по позиции (после скидки)
+ * Утилита для округления денежных значений до 2 знаков после запятой.
+ * Решает проблему плавающей арифметики JS (0.1 + 0.2 !== 0.3).
+ * @param {number} value
+ * @returns {number}
+ */
+function roundMoney(value) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 0;
+  }
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Расчёт выручки по одной позиции с учётом скидки.
+ * @param {Object} purchase — данные покупки (discount, sale_price, quantity)
+ * @param {Object} _product — товар (используется, если понадобится логика по товару)
+ * @returns {number} выручка по позиции (округлённая)
  */
 function calculateSimpleRevenue(purchase, _product) {
   const { discount = 0, sale_price = 0, quantity = 0 } = purchase;
@@ -15,38 +28,43 @@ function calculateSimpleRevenue(purchase, _product) {
   const totalPriceBeforeDiscount = sale_price * quantity;
   const revenue = totalPriceBeforeDiscount * discountFactor;
 
-  return Math.round(revenue * 100) / 100;
+  return roundMoney(revenue);
 }
 
-
 /**
- * Функция для расчёта бонуса от позиции в рейтинге
- * @param index - порядковый номер в отсортированном массиве (начиная с 0)
- * @param total - общее число продавцов
- * @param seller - карточка продавца со статистикой (включая profit)
- * @returns {number} размер бонуса в рублях
+ * Расчёт бонуса для продавца на основе его позиции в рейтинге по прибыли.
+ * @param {number} index — индекс продавца в отсортированном списке (0 = лучший)
+ * @param {number} total — общее количество продавцов
+ * @param {Object} seller — объект продавца (нужен profit)
+ * @returns {number} бонус (округлённый)
  */
 function calculateBonusByProfit(index, total, seller) {
   const { profit = 0 } = seller;
 
+  let bonusPercent = 0;
+
   if (index === 0) {
-    return profit * 0.15;
+    bonusPercent = 0.15; // 15% лучшему
   } else if (index === 1 || index === 2) {
-    return profit * 0.10;
+    bonusPercent = 0.10; // 10% второму и третьему
   } else if (index === total - 1) {
-    return 0;
+    bonusPercent = 0;   // последнему — 0
   } else {
-    return profit * 0.05;
+    bonusPercent = 0.05; // остальным — 5%
   }
+
+  const bonus = profit * bonusPercent;
+  return roundMoney(bonus);
 }
 
 /**
- * Главная функция анализа данных продаж
- * @param data - объект с коллекциями: customers, products, sellers, purchase_records
- * @param options - объект с функциями расчёта: calculateRevenue, calculateBonus
- * @returns {Array} массив отчётов по продавцам в требуемом формате
+ * Анализ данных продаж: выручка, прибыль, бонусы, топ-товары.
+ * @param {Object} data — входные данные (sellers, products, purchase_records)
+ * @param {Object} options — настройки (calculateRevenue, calculateBonus)
+ * @returns {Array<Object>} массив статистики по продавцам
  */
 function analyzeSalesData(data, options) {
+  // Валидация входных данных
   if (!data || typeof data !== 'object') {
     throw new Error('Не переданы данные (data) или они не являются объектом');
   }
@@ -61,25 +79,21 @@ function analyzeSalesData(data, options) {
     }
   }
 
+  // Валидация options и обязательных функций
   if (!options || typeof options !== 'object') {
     throw new Error('Не переданы настройки (options) или они не являются объектом');
   }
 
-  if (!options || typeof options !== 'object') {
-  throw new Error('Не переданы настройки (options) или они не являются объектом');
-}
+  const { calculateRevenue, calculateBonus } = options;
 
-const { calculateRevenue, calculateBonus } = options;
+  if (typeof calculateRevenue !== 'function') {
+    throw new Error('В options не передана функция calculateRevenue или она не является функцией');
+  }
+  if (typeof calculateBonus !== 'function') {
+    throw new Error('В options не передана функция calculateBonus или она не является функцией');
+  }
 
-if (typeof calculateRevenue !== 'function') {
-  throw new Error('В options не передана функция calculateRevenue или она не является функцией');
-}
-if (typeof calculateBonus !== 'function') {
-  throw new Error('В options не передана функция calculateBonus или она не является функцией');
-}
-
-
-
+  // Подготовка карты продавцов
   const sellerStatsMap = new Map();
   data.sellers.forEach(seller => {
     const name = `${seller.first_name || ''} ${seller.last_name || ''}`.trim() || 'Неизвестный продавец';
@@ -89,10 +103,11 @@ if (typeof calculateBonus !== 'function') {
       revenue: 0,
       profit: 0,
       sales_count: 0,
-      products_sold: {} 
+      products_sold: {} // { sku: quantity }
     });
   });
 
+  // Индекс товаров по SKU для быстрого поиска
   const productIndex = {};
   data.products.forEach(product => {
     if (product.sku) {
@@ -102,7 +117,7 @@ if (typeof calculateBonus !== 'function') {
     }
   });
 
-
+  // Обработка чеков
   data.purchase_records.forEach(receipt => {
     const seller = sellerStatsMap.get(receipt.seller_id);
 
@@ -129,12 +144,12 @@ if (typeof calculateBonus !== 'function') {
         return;
       }
 
-      const cost = product.purchase_price * item.quantity;
-      const positionProfit = revenue - cost;
+      const cost = roundMoney(product.purchase_price * item.quantity);
+      const positionProfit = roundMoney(revenue - cost);
 
-      seller.revenue = Math.round((seller.revenue + revenue) * 100) / 100;
-      seller.profit = Math.round((seller.profit + positionProfit) * 100) / 100;
-
+      // Накопление с округлением на каждом шаге — это критично для совпадения с эталоном
+      seller.revenue = roundMoney(seller.revenue + revenue);
+      seller.profit = roundMoney(seller.profit + positionProfit);
 
       if (!seller.products_sold[item.sku]) {
         seller.products_sold[item.sku] = 0;
@@ -150,8 +165,10 @@ if (typeof calculateBonus !== 'function') {
     return [];
   }
 
+  // Сортировка по прибыли (убывание)
   sellerStats.sort((a, b) => b.profit - a.profit);
 
+  // Назначение бонусов и формирование топ-10 товаров
   const totalSellers = sellerStats.length;
 
   sellerStats.forEach((seller, index) => {
@@ -165,13 +182,24 @@ if (typeof calculateBonus !== 'function') {
     seller.top_products = topProductsArray;
   });
 
+  // Формирование итогового отчёта
   return sellerStats.map(seller => ({
     seller_id: seller.id,
     name: seller.name,
-    revenue: +seller.revenue.toFixed(2),
-    profit: +seller.profit.toFixed(2),
+    revenue: seller.revenue,      // уже округлено
+    profit: seller.profit,        // уже округлено
     sales_count: seller.sales_count,
     top_products: seller.top_products,
-    bonus: +seller.bonus.toFixed(2)
+    bonus: seller.bonus           // уже округлено
   }));
+}
+
+// Экспорт функций (если проект на CommonJS)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    roundMoney,
+    calculateSimpleRevenue,
+    calculateBonusByProfit,
+    analyzeSalesData
+  };
 }
