@@ -97,8 +97,8 @@ function analyzeSalesData(data, options) {
     sellerStatsMap.set(seller.id, {
       id: seller.id,
       name: name,
-      revenue: 0,      // без округления внутри
-      profit: 0,       // без округления внутри
+      revenue: 0,
+      profit: 0,
       sales_count: 0,
       products_sold: {}
     });
@@ -140,9 +140,9 @@ function analyzeSalesData(data, options) {
       const cost = product.purchase_price * item.quantity;
       const positionProfit = revenue - cost;
 
-      // ВАЖНО: здесь НЕ округляем — копим «грязные» числа
-      seller.revenue += revenue;
-      seller.profit += positionProfit;
+      // ВАЖНО: округляем на каждом шаге, чтобы совпасть с эталонами
+      seller.revenue = roundMoney(seller.revenue + revenue);
+      seller.profit = roundMoney(seller.profit + positionProfit);
 
       if (!seller.products_sold[item.sku]) {
         seller.products_sold[item.sku] = 0;
@@ -171,17 +171,18 @@ function analyzeSalesData(data, options) {
     seller.top_products = topProductsArray;
   });
 
-  // Округление только на выходе — так ты получишь числа, максимально близкие к эталонам
+  // На выходе тоже округляем (для чистоты)
   return sellerStats.map(seller => ({
     seller_id: seller.id,
     name: seller.name,
-    revenue: Math.round(seller.revenue * 100) / 100,
-    profit: Math.round(seller.profit * 100) / 100,
+    revenue: roundMoney(seller.revenue),
+    profit: roundMoney(seller.profit),
     sales_count: seller.sales_count,
     top_products: seller.top_products,
-    bonus: Math.round(seller.bonus * 100) / 100
+    bonus: roundMoney(seller.bonus)
   }));
 }
+
 
 
 // Экспорт функций (если проект на CommonJS)
