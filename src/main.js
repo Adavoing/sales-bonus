@@ -64,7 +64,6 @@ function calculateBonusByProfit(index, total, seller) {
  * @returns {Array<Object>} массив статистики по продавцам
  */
 function analyzeSalesData(data, options) {
-  // Валидация входных данных
   if (!data || typeof data !== 'object') {
     throw new Error('Не переданы данные (data) или они не являются объектом');
   }
@@ -79,7 +78,6 @@ function analyzeSalesData(data, options) {
     }
   }
 
-  // Валидация options и обязательных функций
   if (!options || typeof options !== 'object') {
     throw new Error('Не переданы настройки (options) или они не являются объектом');
   }
@@ -93,21 +91,19 @@ function analyzeSalesData(data, options) {
     throw new Error('В options не передана функция calculateBonus или она не является функцией');
   }
 
-  // Подготовка карты продавцов
   const sellerStatsMap = new Map();
   data.sellers.forEach(seller => {
     const name = `${seller.first_name || ''} ${seller.last_name || ''}`.trim() || 'Неизвестный продавец';
     sellerStatsMap.set(seller.id, {
       id: seller.id,
       name: name,
-      revenue: 0,
-      profit: 0,
+      revenue: 0,      // без округления внутри
+      profit: 0,       // без округления внутри
       sales_count: 0,
-      products_sold: {} // { sku: quantity }
+      products_sold: {}
     });
   });
 
-  // Индекс товаров по SKU для быстрого поиска
   const productIndex = {};
   data.products.forEach(product => {
     if (product.sku) {
@@ -117,10 +113,8 @@ function analyzeSalesData(data, options) {
     }
   });
 
-  // Обработка чеков
   data.purchase_records.forEach(receipt => {
     const seller = sellerStatsMap.get(receipt.seller_id);
-
     if (!seller) {
       console.warn(`Чек ${receipt.receipt_id}: продавец с ID ${receipt.seller_id} не найден`);
       return;
@@ -130,7 +124,6 @@ function analyzeSalesData(data, options) {
 
     receipt.items.forEach(item => {
       const product = productIndex[item.sku];
-
       if (!product) {
         console.warn(`Чек ${receipt.receipt_id}: товар с SKU ${item.sku} не найден в каталоге`);
         return;
@@ -144,12 +137,12 @@ function analyzeSalesData(data, options) {
         return;
       }
 
-      const cost = roundMoney(product.purchase_price * item.quantity);
-      const positionProfit = roundMoney(revenue - cost);
+      const cost = product.purchase_price * item.quantity;
+      const positionProfit = revenue - cost;
 
-      // Накопление с округлением на каждом шаге — это критично для совпадения с эталоном
-      seller.revenue = roundMoney(seller.revenue + revenue);
-      seller.profit = roundMoney(seller.profit + positionProfit);
+      // ВАЖНО: здесь НЕ округляем — копим «грязные» числа
+      seller.revenue += revenue;
+      seller.profit += positionProfit;
 
       if (!seller.products_sold[item.sku]) {
         seller.products_sold[item.sku] = 0;
@@ -159,18 +152,14 @@ function analyzeSalesData(data, options) {
   });
 
   const sellerStats = Array.from(sellerStatsMap.values());
-
   if (sellerStats.length === 0) {
     console.warn('Не удалось собрать статистику ни по одному продавцу.');
     return [];
   }
 
-  // Сортировка по прибыли (убывание)
   sellerStats.sort((a, b) => b.profit - a.profit);
 
-  // Назначение бонусов и формирование топ-10 товаров
   const totalSellers = sellerStats.length;
-
   sellerStats.forEach((seller, index) => {
     seller.bonus = calculateBonus(index, totalSellers, seller);
 
@@ -182,17 +171,18 @@ function analyzeSalesData(data, options) {
     seller.top_products = topProductsArray;
   });
 
-  // Формирование итогового отчёта
+  // Округление только на выходе — так ты получишь числа, максимально близкие к эталонам
   return sellerStats.map(seller => ({
     seller_id: seller.id,
     name: seller.name,
-    revenue: seller.revenue,      // уже округлено
-    profit: seller.profit,        // уже округлено
+    revenue: Math.round(seller.revenue * 100) / 100,
+    profit: Math.round(seller.profit * 100) / 100,
     sales_count: seller.sales_count,
     top_products: seller.top_products,
-    bonus: seller.bonus           // уже округлено
+    bonus: Math.round(seller.bonus * 100) / 100
   }));
 }
+
 
 // Экспорт функций (если проект на CommonJS)
 if (typeof module !== 'undefined' && module.exports) {
