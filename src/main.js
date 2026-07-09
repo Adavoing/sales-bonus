@@ -137,10 +137,10 @@ function analyzeSalesData(data, options) {
         return;
       }
 
-      const cost = product.purchase_price * item.quantity;
-      const positionProfit = revenue - cost;
+      // Важно: округляем даже cost, чтобы совпасть с эталонами
+      const cost = roundMoney(product.purchase_price * item.quantity);
+      const positionProfit = roundMoney(revenue - cost);
 
-      // ВАЖНО: округляем на каждом шаге, чтобы совпасть с эталонами
       seller.revenue = roundMoney(seller.revenue + revenue);
       seller.profit = roundMoney(seller.profit + positionProfit);
 
@@ -170,6 +170,18 @@ function analyzeSalesData(data, options) {
 
     seller.top_products = topProductsArray;
   });
+
+  return sellerStats.map(seller => ({
+    seller_id: seller.id,
+    name: seller.name,
+    revenue: roundMoney(seller.revenue),
+    profit: roundMoney(seller.profit),
+    sales_count: seller.sales_count,
+    top_products: seller.top_products,
+    bonus: roundMoney(seller.bonus)
+  }));
+}
+
 
   // На выходе тоже округляем (для чистоты)
   return sellerStats.map(seller => ({
