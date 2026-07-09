@@ -15,8 +15,9 @@ function calculateSimpleRevenue(purchase, _product) {
   const totalPriceBeforeDiscount = sale_price * quantity;
   const revenue = totalPriceBeforeDiscount * discountFactor;
 
-  return Math.max(0, revenue);
+  return Math.round(revenue * 100) / 100;
 }
+
 
 /**
  * Функция для расчёта бонуса от позиции в рейтинге
@@ -64,14 +65,19 @@ function analyzeSalesData(data, options) {
     throw new Error('Не переданы настройки (options) или они не являются объектом');
   }
 
-  const { calculateRevenue = calculateSimpleRevenue, calculateBonus = calculateBonusByProfit } = options;
+  if (!options || typeof options !== 'object') {
+  throw new Error('Не переданы настройки (options) или они не являются объектом');
+}
 
-  if (typeof calculateRevenue !== 'function') {
-    throw new Error('В options не передана функция calculateRevenue или она не является функцией');
-  }
-  if (typeof calculateBonus !== 'function') {
-    throw new Error('В options не передана функция calculateBonus или она не является функцией');
-  }
+const { calculateRevenue, calculateBonus } = options;
+
+if (typeof calculateRevenue !== 'function') {
+  throw new Error('В options не передана функция calculateRevenue или она не является функцией');
+}
+if (typeof calculateBonus !== 'function') {
+  throw new Error('В options не передана функция calculateBonus или она не является функцией');
+}
+
 
 
   const sellerStatsMap = new Map();
@@ -126,8 +132,9 @@ function analyzeSalesData(data, options) {
       const cost = product.purchase_price * item.quantity;
       const positionProfit = revenue - cost;
 
-      seller.revenue += revenue;
-      seller.profit += positionProfit;
+      seller.revenue = Math.round((seller.revenue + revenue) * 100) / 100;
+      seller.profit = Math.round((seller.profit + positionProfit) * 100) / 100;
+
 
       if (!seller.products_sold[item.sku]) {
         seller.products_sold[item.sku] = 0;
