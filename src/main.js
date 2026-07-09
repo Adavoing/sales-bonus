@@ -115,7 +115,6 @@ function analyzeSalesData(data, options) {
         return;
       }
 
-      // Расчёт выручки по позиции
       let revenue;
       try {
         revenue = calculateRevenue(item, product);
