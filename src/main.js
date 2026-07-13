@@ -27,7 +27,6 @@ function calculateSimpleRevenue(purchase, _product) {
   const totalPriceBeforeDiscount = sale_price * quantity;
   const revenue = totalPriceBeforeDiscount * discountFactor;
 
-  // Возвращаем округлённую выручку (не меньше 0)
   return Math.round(Math.max(0, revenue) * 100) / 100;
 }
 
@@ -47,8 +46,7 @@ function calculateBonusByProfit(index, total, seller) {
   } else {
     return profit * 0.05;
   }
-  // ВАЖНО: здесь мы НЕ делаем .toFixed и не округляем.
-  // Округление будет только в самом конце, чтобы не накапливать ошибки.
+  
 }
 
 function analyzeSalesData(data, options) {
@@ -88,7 +86,7 @@ function analyzeSalesData(data, options) {
         id: seller.id,
         name: name,
         revenue: 0,
-        profit: 0,          // храним полную точность
+        profit: 0,          
         sales_count: 0,
         products_sold: {}
       });
@@ -151,7 +149,6 @@ function analyzeSalesData(data, options) {
 
         const cost = product.purchase_price * item.quantity;
         
-        // ИСПРАВЛЕНИЕ: убираем округление здесь. Считаем с полной точностью
         const positionProfit = revenue - cost;
 
         seller.revenue += revenue;
@@ -177,7 +174,6 @@ function analyzeSalesData(data, options) {
 
     sellerStats.forEach((seller, index) => {
       try {
-        // Оставляем расчёт бонуса «как есть» (без округления)
         seller.bonus = calculateBonus(index, totalSellers, seller);
       } catch (error) {
         console.warn(
@@ -195,7 +191,6 @@ function analyzeSalesData(data, options) {
       seller.top_products = topProductsArray;
     });
 
-    // ИСПРАВЛЕНИЕ: округляем всё только здесь, на финальном этапе
     return sellerStats.map((seller) => ({
       seller_id: seller.id,
       name: seller.name,
