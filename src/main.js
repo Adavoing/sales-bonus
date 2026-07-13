@@ -27,7 +27,7 @@ function calculateSimpleRevenue(purchase, _product) {
   const totalPriceBeforeDiscount = sale_price * quantity;
   const revenue = totalPriceBeforeDiscount * discountFactor;
 
-  return Math.max(0, revenue);
+  return Math.round(Math.max(0, revenue) * 100) / 100;
 }
 
 function calculateBonusByProfit(index, total, seller) {
@@ -147,7 +147,7 @@ function analyzeSalesData(data, options) {
         }
 
         const cost = product.purchase_price * item.quantity;
-        const positionProfit = revenue - cost;
+        const positionProfit = Math.round((revenue - cost) * 100) / 100;
 
         seller.revenue += revenue;
         seller.profit += positionProfit;
